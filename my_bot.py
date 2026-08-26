@@ -1,18 +1,26 @@
 import logging
 import os
 import re
+import threading
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, ConversationHandler, filters
 from docx import Document
 import openpyxl
+from flask import Flask
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# បង្កើត Flask App សម្រាប់ Render Web Service
+app_flask = Flask(__name__)
+
+@app_flask.route('/')
+def home():
+    return "Telegram Bot is running smoothly!"
 
 user_last_files = {}
 user_meetings = {}        
 
-# States សម្រាប់ប្រព័ន្ធ Step-by-Step Meeting
 GET_TOPIC, GET_DATETIME, GET_REMIND = range(3)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -59,7 +67,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_message)
 
-# --- មុខងារ Step-by-Step Meeting ---
 async def meeting_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📌 សូម **វាយបញ្ចូលប្រធានបទប្រជុំ** របស់អ្នក៖")
     return GET_TOPIC
@@ -108,7 +115,6 @@ async def meeting_receive_remind(update: Update, context: ContextTypes.DEFAULT_T
     datetime_str = context.user_data.get('datetime_str')
     target_dt = context.user_data.get('target_dt')
 
-    # คำนวณเวลาแจ้งเตือนล่วงหน้า
     reminder_dt = target_dt - timedelta(minutes=remind_mins)
     now = datetime.now()
     due_seconds = (reminder_dt - now).total_seconds()
@@ -124,7 +130,6 @@ async def meeting_receive_remind(update: Update, context: ContextTypes.DEFAULT_T
 
     context.job_queue.run_once(alarm_callback, due_seconds, chat_id=chat_id)
 
-    # រក្សាទុកក្នុងបញ្ជីប្រជុំរបស់ User
     if user_id not in user_meetings:
         user_meetings[user_id] = []
 
@@ -135,7 +140,6 @@ async def meeting_receive_remind(update: Update, context: ContextTypes.DEFAULT_T
     }
     user_meetings[user_id].append(new_meeting)
 
-    # បង្ហាញជា Table List នៅចុងបញ្ចប់តាមតម្រូវការ
     table_text = (
         f"✅ **បានកត់ត្រារម្លឹកមុន {remind_mins}នាទី និងរក្សាទុកជោគជ័យ!**\n\n"
         "📊 **[ តារាងបញ្ជីការប្រជុំ (Meeting Table List) ]**\n"
@@ -152,7 +156,6 @@ async def cancel_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ បានបោះបង់ការបង្កើតប្រជុំ។")
     return ConversationHandler.END
 
-# --- មុខងារគ្រប់គ្រងប៊ូតុងហ្វាល Word ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -230,7 +233,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             await query.message.reply_text(f"❌ មានបញ្ហា៖ {str(e)}")
 
-# --- មុខងារຮັບហ្វាល Word ---
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = update.effective_user.id
@@ -268,6 +270,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ មានបញ្ហា៖ {str(e)}")
 
 def main():
+    # 1. ដំណើរការ Telegram Bot ក្នុង Background Thread
     app = ApplicationBuilder().token("8900404018:AAEKN28HJjDuZf0bOvKwEz754Zqs8kPVaKk").build()
 
     meeting_conv = ConversationHandler(
@@ -285,8 +288,17 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-    print("Bot @Borann_bot កំពុងដំណើរការជាមួយ Table List Output...")
-    app.run_polling()
+    def run_telegram_bot():
+        app.run_polling()
+
+    bot_thread = threading.Thread(target=run_telegram_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
+    print("Telegram Bot បានចាប់ផ្តើមដំណើរការក្នុង Background!")
+
+    # 2. ให้ Flask Server រត់ជា Main Process ដើម្បីបើក Port ឱ្យ Render ស្គាល់
+    port = int(os.environ.get("PORT", 10000))
+    app_flask.run(host="0.0.0.0", port=port)
 
 if __name__ == '__main__':
     main()
