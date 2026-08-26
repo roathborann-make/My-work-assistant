@@ -11,7 +11,7 @@ from flask import Flask
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# បង្កើត Flask App សម្រាប់ Render Web Service
+# បង្កើត Flask App សម្រាប់បើក Port ឱ្យ Render ស្គាល់
 app_flask = Flask(__name__)
 
 @app_flask.route('/')
@@ -270,7 +270,6 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ មានបញ្ហា៖ {str(e)}")
 
 def main():
-    # 1. ដំណើរការ Telegram Bot ក្នុង Background Thread
     app = ApplicationBuilder().token("8900404018:AAEKN28HJjDuZf0bOvKwEz754Zqs8kPVaKk").build()
 
     meeting_conv = ConversationHandler(
@@ -296,7 +295,6 @@ def main():
     bot_thread.start()
     print("Telegram Bot បានចាប់ផ្តើមដំណើរការក្នុង Background!")
 
-    # 2. ให้ Flask Server រត់ជា Main Process ដើម្បីបើក Port ឱ្យ Render ស្គាល់
     port = int(os.environ.get("PORT", 10000))
     app_flask.run(host="0.0.0.0", port=port)
 
