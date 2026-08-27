@@ -249,6 +249,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ មានបញ្ហា៖ {str(e)}")
 
 def setup_handlers():
+    # ចុះឈ្មោះ Command Handler ទាំងពីរឱ្យច្បាស់លាស់
     telegram_app.add_handler(CommandHandler("start", start))
     telegram_app.add_handler(CommandHandler("meeting", meeting_command))
     telegram_app.add_handler(CallbackQueryHandler(button_handler))
@@ -257,5 +258,10 @@ def setup_handlers():
 if __name__ == '__main__':
     setup_handlers()
 
+    # ធ្វើការ Initialize និង Start Telegram App ទុកជាមុនសិន ធានាថា Handlers ទាំងអស់ដំណើរការ
+    asyncio.run(telegram_app.initialize())
+    asyncio.run(telegram_app.start())
+
+    # បើកដំណើរការ Flask Server ទទួល Webhook
     port = int(os.environ.get("PORT", 10000))
     app_flask.run(host="0.0.0.0", port=port)
