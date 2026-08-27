@@ -267,8 +267,8 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ មានបញ្ហា៖ {str(e)}")
 
 def main():
-    # 1. ដំណើរការ Telegram Bot ក្នុង Background Thread
-    app = ApplicationBuilder().token("8900404018:AAHq8R6Ge9LJ9gL0sUZO759hMMDGw8d_HnQ").build()
+    # ប្រើប្រាស់ Token ថ្មីស្អាតរបស់អ្នក (@RathBorann_bot)
+    app = ApplicationBuilder().token("8988591586:AAFdWPkI7MGaJcAmoclzbAn9lkKXgarS6z4").build()
 
     meeting_conv = ConversationHandler(
         entry_points=[CommandHandler('meeting', meeting_start)],
@@ -291,9 +291,8 @@ def main():
     bot_thread = threading.Thread(target=run_telegram_bot)
     bot_thread.daemon = True
     bot_thread.start()
-    print("Telegram Bot បានចាប់ផ្តើមដំណើរការក្នុង Background!")
+    print("Telegram Bot (@RathBorann_bot) បានចាប់ផ្តើមដំណើរការ!")
 
-    # 2. ให้ Flask Server រត់ជា Main Process ដើម្បីបើក Port ឱ្យ Render ស្គាល់
     port = int(os.environ.get("PORT", 10000))
     app_flask.run(host="0.0.0.0", port=port)
 
