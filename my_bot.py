@@ -1,21 +1,39 @@
 import logging
 import os
 import re
-import threading
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, ConversationHandler, filters
 from docx import Document
 import openpyxl
-from flask import Flask
+from flask import Flask, request
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
+# 1. បង្កើត Flask App
 app_flask = Flask(__name__)
+
+TOKEN = "8988591586:AAFdWPkI7MGaJcAmoclzbAn9lkKXgarS6z4"
+WEBHOOK_SECRET = "my_secret_token_123"
+RENDER_URL = "https://my-work-assistant-1.onrender.com"
+
+# បង្កើត Telegram Application
+telegram_app = ApplicationBuilder().token(TOKEN).build()
 
 @app_flask.route('/')
 def home():
-    return "Telegram Bot is running smoothly!"
+    return "Telegram Bot is running with Webhook smoothly!"
+
+@app_flask.route(f'/{TOKEN}', methods=['POST'])
+def webhook():
+    """ទទួល Request ពី Telegram ហើយបញ្ជូនបន្តទៅ Telegram Application"""
+    if request.headers.get('X-Telegram-Bot-Api-Secret-Token') == WEBHOOK_SECRET:
+        update = Update.de_json(request.get_json(force=True), telegram_app.bot)
+        # ប្រើ asyncio ដើម្បីដំណើរការ update ក្នុង Flask event loop
+        import asyncio
+        asyncio.run(telegram_app.process_update(update))
+        return 'OK', 200
+    return 'Unauthorized', 403
 
 user_last_files = {}
 user_meetings = {}        
@@ -264,10 +282,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ មានបញ្ហា៖ {str(e)}")
 
-def main():
-    TOKEN = "8988591586:AAFdWPkI7MGaJcAmoclzbAn9lkKXgarS6z4"
-    app = ApplicationBuilder().token(TOKEN).build()
-
+def setup_handlers():
     meeting_conv = ConversationHandler(
         entry_points=[CommandHandler('meeting', meeting_start)],
         states={
@@ -278,22 +293,26 @@ def main():
         fallbacks=[CommandHandler('cancel', cancel_meeting)]
     )
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(meeting_conv)
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    telegram_app.add_handler(CommandHandler("start", start))
+    telegram_app.add_handler(meeting_conv)
+    telegram_app.add_handler(CallbackQueryHandler(button_handler))
+    telegram_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-    def run_telegram_bot():
-        # ដក loop=loop ออก เพื่อแก้ไข Error 
-        app.run_polling(drop_pending_updates=True)
-
-    bot_thread = threading.Thread(target=run_telegram_bot)
-    bot_thread.daemon = True
-    bot_thread.start()
-    print("Telegram Bot បានចាប់ផ្តើមដំណើរការក្នុង Background!")
-
-    port = int(os.environ.get("PORT", 10000))
-    app_flask.run(host="0.0.0.0", port=port)
+async def set_bot_webhook():
+    """ตั้งค่า Webhook ទៅ Telegram API ដោយស្វ័យប្រវត្តិពេល Start"""
+    webhook_url = f"{RENDER_URL}/{TOKEN}"
+    await telegram_app.bot.set_webhook(url=webhook_url, secret_token=WEBHOOK_SECRET)
+    print(f"Webhook set to: {webhook_url}")
 
 if __name__ == '__main__':
-    main()
+    setup_handlers()
+    
+    # Initialize Telegram Application & Set Webhook
+    import asyncio
+    asyncio.run(telegram_app.initialize())
+    asyncio.run(set_bot_webhook())
+    asyncio.run(telegram_app.start())
+
+    # รัน Flask Server เป็น Main Process เพื่อเปิด Port ให้ Render รู้จัก (Live Icon เป็นสีเขียว และไม่มี Error Thread อีกต่อไป)
+    port = int(os.environ.get("PORT", 10000))
+    app_flask.run(host="0.0.0.0", port=port)
