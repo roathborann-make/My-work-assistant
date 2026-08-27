@@ -6,16 +6,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, ConversationHandler, filters
 from docx import Document
 import openpyxl
-from flask import Flask
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
-# បង្កើត Flask App សម្រាប់បើក Port ឱ្យ Render ស្គាល់
-app_flask = Flask(__name__)
-
-@app_flask.route('/')
-def home():
-    return "Telegram Bot is running smoothly!"
 
 user_last_files = {}
 user_meetings = {}        
@@ -265,7 +257,6 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ មានបញ្ហា៖ {str(e)}")
 
 def main():
-    # ប្រើប្រាស់ Webhook ជំនួស Polling ដើម្បីឱ្យ Flask និង Telegram Bot រត់ជាមួយគ្នាបានដោយរលូននៅលើ Render
     TOKEN = "8988591586:AAFdWPkI7MGaJcAmoclzbAn9lkKXgarS6z4"
     app = ApplicationBuilder().token(TOKEN).build()
 
@@ -284,17 +275,8 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-    # កំណត់ Webhook URL ទៅកាន់ Render Web Service របស់អ្នកដោយស្វ័យប្រវត្តិ
-    RENDER_EXTERNAL_URL = "https://my-work-assistant-1.onrender.com/"
-    PORT = int(os.environ.get("PORT", 10000))
-
-    print("Starting Telegram Bot with Webhook...")
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        secret_token="my_secret_token_123",
-        webhook_url=f"{RENDER_EXTERNAL_URL.rstrip('/')}/{TOKEN}"
-    )
+    print("Telegram Bot is running with polling...")
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
