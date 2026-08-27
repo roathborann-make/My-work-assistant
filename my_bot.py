@@ -7,31 +7,30 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Messa
 from docx import Document
 import openpyxl
 from flask import Flask, request
+import asyncio
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# 1. បង្កើត Flask App
 app_flask = Flask(__name__)
 
 TOKEN = "8988591586:AAFdWPkI7MGaJcAmoclzbAn9lkKXgarS6z4"
 WEBHOOK_SECRET = "my_secret_token_123"
-RENDER_URL = "https://my-work-assistant-1.onrender.com"
 
-# បង្កើត Telegram Application
 telegram_app = ApplicationBuilder().token(TOKEN).build()
 
 @app_flask.route('/')
 def home():
-    return "Telegram Bot is running with Webhook smoothly!"
+    return "Telegram Bot is running smoothly with Webhook!"
 
 @app_flask.route(f'/{TOKEN}', methods=['POST'])
 def webhook():
-    """ទទួល Request ពី Telegram ហើយបញ្ជូនបន្តទៅ Telegram Application"""
     if request.headers.get('X-Telegram-Bot-Api-Secret-Token') == WEBHOOK_SECRET:
         update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-        # ប្រើ asyncio ដើម្បីដំណើរការ update ក្នុង Flask event loop
-        import asyncio
-        asyncio.run(telegram_app.process_update(update))
+        # បង្កើត Event Loop ថ្មីសម្រាប់ដំណើរការ Update នីមួយៗពេលមានសារចូល
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(telegram_app.process_update(update))
+        loop.close()
         return 'OK', 200
     return 'Unauthorized', 403
 
@@ -298,21 +297,13 @@ def setup_handlers():
     telegram_app.add_handler(CallbackQueryHandler(button_handler))
     telegram_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-async def set_bot_webhook():
-    """ตั้งค่า Webhook ទៅ Telegram API ដោយស្វ័យប្រវត្តិពេល Start"""
-    webhook_url = f"{RENDER_URL}/{TOKEN}"
-    await telegram_app.bot.set_webhook(url=webhook_url, secret_token=WEBHOOK_SECRET)
-    print(f"Webhook set to: {webhook_url}")
-
 if __name__ == '__main__':
     setup_handlers()
     
-    # Initialize Telegram Application & Set Webhook
-    import asyncio
+    # ធ្វើការ Initialize Telegram App ដោយសុវត្ថិភាព
     asyncio.run(telegram_app.initialize())
-    asyncio.run(set_bot_webhook())
     asyncio.run(telegram_app.start())
 
-    # รัน Flask Server เป็น Main Process เพื่อเปิด Port ให้ Render รู้จัก (Live Icon เป็นสีเขียว และไม่มี Error Thread อีกต่อไป)
+    # បើកដំណើរការ Flask Server ជា Main Process (ធ្វើឱ្យ Render ឡើងពណ៌បៃតង Live ភ្លាម)
     port = int(os.environ.get("PORT", 10000))
     app_flask.run(host="0.0.0.0", port=port)
