@@ -11,7 +11,6 @@ from flask import Flask
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# បង្កើត Flask App សម្រាប់បើក Port ឱ្យ Render ស្គាល់ (ធ្វើឱ្យ Live Icon ចេញពណ៌បៃតង)
 app_flask = Flask(__name__)
 
 @app_flask.route('/')
@@ -284,19 +283,15 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-    # 1. ដំណើរការ Telegram Bot Polling ក្នុង Background Thread ដោយប្រើ asyncio loop ដាច់ដោយឡែក
     def run_telegram_bot():
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        app.run_polling(drop_pending_updates=True, loop=loop)
+        # ដក loop=loop ออก เพื่อแก้ไข Error 
+        app.run_polling(drop_pending_updates=True)
 
     bot_thread = threading.Thread(target=run_telegram_bot)
     bot_thread.daemon = True
     bot_thread.start()
     print("Telegram Bot បានចាប់ផ្តើមដំណើរការក្នុង Background!")
 
-    # 2. ឱ្យ Flask Server រត់ជា Main Process ដើម្បីបើក Port ឱ្យ Render ស្គាល់ (Live Icon ប្រែជាពណ៌បៃតង)
     port = int(os.environ.get("PORT", 10000))
     app_flask.run(host="0.0.0.0", port=port)
 
