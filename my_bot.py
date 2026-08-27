@@ -1,7 +1,6 @@
 import logging
 import os
 import re
-import threading
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, ConversationHandler, filters
@@ -141,7 +140,6 @@ async def meeting_receive_remind(update: Update, context: ContextTypes.DEFAULT_T
     }
     user_meetings[user_id].append(new_meeting)
 
-    # បង្ហាញសាររាយការណ៍ចុងក្រោយតាមទម្រង់ស្នើសុំ
     date_part = datetime_str.split(' ')[0]
     time_part = datetime_str.split(' ')[1]
     report_text = f"គោរពរាយការណ៍ជូនមេ! ថ្ងៃនេះមានការប្រជុំ{topic} ថ្ងៃ {date_part} វេលាម៉ោង {time_part}"
@@ -267,8 +265,9 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ មានបញ្ហា៖ {str(e)}")
 
 def main():
-    # ប្រើប្រាស់ Token ថ្មីស្អាតរបស់អ្នក (@RathBorann_bot)
-    app = ApplicationBuilder().token("8988591586:AAFdWPkI7MGaJcAmoclzbAn9lkKXgarS6z4").build()
+    # ប្រើប្រាស់ Webhook ជំនួស Polling ដើម្បីឱ្យ Flask និង Telegram Bot រត់ជាមួយគ្នាបានដោយរលូននៅលើ Render
+    TOKEN = "8988591586:AAFdWPkI7MGaJcAmoclzbAn9lkKXgarS6z4"
+    app = ApplicationBuilder().token(TOKEN).build()
 
     meeting_conv = ConversationHandler(
         entry_points=[CommandHandler('meeting', meeting_start)],
@@ -285,16 +284,17 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-    def run_telegram_bot():
-        app.run_polling(drop_pending_updates=True)
+    # កំណត់ Webhook URL ទៅកាន់ Render Web Service របស់អ្នកដោយស្វ័យប្រវត្តិ
+    RENDER_EXTERNAL_URL = "https://my-work-assistant-1.onrender.com/"
+    PORT = int(os.environ.get("PORT", 10000))
 
-    bot_thread = threading.Thread(target=run_telegram_bot)
-    bot_thread.daemon = True
-    bot_thread.start()
-    print("Telegram Bot (@RathBorann_bot) បានចាប់ផ្តើមដំណើរការ!")
-
-    port = int(os.environ.get("PORT", 10000))
-    app_flask.run(host="0.0.0.0", port=port)
+    print("Starting Telegram Bot with Webhook...")
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        secret_token="my_secret_token_123",
+        webhook_url=f"{RENDER_EXTERNAL_URL.rstrip('/')}/{TOKEN}"
+    )
 
 if __name__ == '__main__':
-    main() 
+    main()
