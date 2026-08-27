@@ -2,7 +2,7 @@ import logging
 import os
 import re
 from datetime import datetime, timedelta
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from docx import Document
 import openpyxl
@@ -157,7 +157,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     summary_text = "(ហ្វាលនេះទទេ ឬគ្មានអត្ថបទច្បាស់លាស់)"
                 file_name = os.path.basename(target_file)
                 await query.message.reply_text(
-                    f"📋 **សេចក្តីសង្ខេបរបាយการណ៍ (`{file_name}`)៖**\n"
+                    f"📋 **សេចក្តីសង្ខេបរបាយការណ៍ (`{file_name}`)៖**\n"
                     f"-----------------------------------\n"
                     f"{summary_text}\n"
                     f"-----------------------------------",
@@ -254,19 +254,8 @@ def setup_handlers():
     telegram_app.add_handler(CallbackQueryHandler(button_handler))
     telegram_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-async def set_bot_commands():
-    commands = [
-        BotCommand("start", "ចាប់ផ្តើមប្រើប្រាស់ Bot"),
-        BotCommand("meeting", "កត់ត្រាកាលវិភាគប្រជុំ")
-    ]
-    await telegram_app.bot.set_my_commands(commands)
-
 if __name__ == '__main__':
     setup_handlers()
-    
-    asyncio.run(telegram_app.initialize())
-    asyncio.run(set_bot_commands())
-    asyncio.run(telegram_app.start())
 
     port = int(os.environ.get("PORT", 10000))
     app_flask.run(host="0.0.0.0", port=port)
