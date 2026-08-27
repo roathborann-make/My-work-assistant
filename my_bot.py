@@ -35,6 +35,7 @@ def webhook():
 
 user_last_files = {}
 user_meetings = {}        
+user_states = {} # សម្រាប់តាមដានដំណាក់កាល (Steps) របស់អ្នកប្រើប្រាស់ម្នាក់ៗ
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROCESSED_FOLDER = os.path.join(BASE_DIR, "processed_files")
@@ -76,55 +77,87 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"សួស្តី {user_name}! 🙏\n"
         "ខ្ញុំជា Bot ជំនួយការការងារ (My Work Assistant)។\n\n"
         "📁 **Attach ហ្វាល Word** - សម្រាប់គ្រប់គ្រងហ្វាលតាមប៊ូតុងអន្តរកម្ម។\n"
-        "📅 `/meeting ប្រធានបទ | DD-MM-YYYY HH:MM` - កត់ត្រាកាលវិភាគប្រជុំភ្លាមៗ។\n"
-        "*(ឧ. `/meeting ប្រជុំប្រចាំខែ | 28-08-2026 14:30`)*"
+        "📅 `/meeting` - កត់ត្រាកាលវិភាគប្រជុំតាមលំដាប់លំដោយ។"
     )
     await update.message.reply_text(welcome_message)
 
-async def meeting_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def meeting_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    text_args = " ".join(context.args)
+    user_states[user_id] = {"step": "GET_TOPIC"}
+    await update.message.reply_text("📌 **[ជំហានទី ១/៣]**\nសូម **វាយបញ្ចូលប្រធានបទប្រជុំ** របស់អ្នក៖")
 
-    if not text_args or "|" not in text_args:
-        await update.message.reply_text(
-            "⚠️ **ទម្រង់នៃការប្រើប្រាស់ខុសហើយ!**\n\n"
-            "សូមប្រើប្រាស់តាមទម្រង់នេះ៖\n"
-            "`/meeting ប្រធានបទប្រជុំ | DD-MM-YYYY HH:MM`\n\n"
-            "📌 **ឧទាហរណ៍៖**\n"
-            "`/meeting ប្រជុំយុទ្ធសាស្ត្រលក់ដូរ | 28-08-2026 14:30`",
-            parse_mode="Markdown"
-        )
+async def handle_message_steps(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text.strip()
+
+    if user_id not in user_states:
         return
 
-    try:
-        parts = text_args.split("|")
-        topic = parts[0].strip()
-        datetime_str = parts[1].strip()
+    state = user_states[user_id]
+    step = state.get("step")
 
-        target_dt = datetime.strptime(datetime_str, "%d-%m-%Y %H:%M")
-        now = datetime.now()
-        if target_dt <= now:
-            await update.message.reply_text("❌ ថ្ងៃ និងម៉ោងដែលបានកំណត់បានន្លងផុតទៅហើយ។ សូមកំណត់ពេលថ្ងៃមុខ។")
+    if step == "GET_TOPIC":
+        state["topic"] = text
+        state["step"] = "GET_DATETIME"
+        await update.message.reply_text(
+            "✅ **បានកត់ត្រាប្រធានបទប្រជុំ!**\n\n"
+            "📅 **[ជំហានទី ២/៣]**\n"
+            "សូមបញ្ចូល **ថ្ងៃខែឆ្នាំ និងម៉ោង** តាមទម្រង់នេះ៖\n"
+            "`DD-MM-YYYY HH:MM` (ឧ. `28-08-2026 14:30`)"
+        ),
+        parse_mode="Markdown"
+
+    elif step == "GET_DATETIME":
+        try:
+            target_dt = datetime.strptime(text, "%d-%m-%Y %H:%M")
+            now = datetime.now()
+            if target_dt <= now:
+                await update.message.reply_text("❌ ថ្ងៃ និងម៉ោងបានន្លងផុតទៅហើយ។ សូមវាយបញ្ចូលថ្មីតាមទម្រង់៖ `DD-MM-YYYY HH:MM`")
+                return
+
+            state["datetime_str"] = text
+            state["target_dt"] = target_dt
+            state["step"] = "GET_REMIND"
+            await update.message.reply_text(
+                "✅ **បានកត់ត្រាថ្ងៃខែឆ្នាំ និងម៉ោង!**\n\n"
+                "⏰ **[ជំហានទី ៣/៣]**\n"
+                "សូមបញ្ចូល **ម៉ោងរំលឹកមុន** (ជាតួលេខនាទី ឧ. `10`, `15`, `20`, `30`...)"
+            )
+        except ValueError:
+            await update.message.reply_text("❌ ទម្រង់ថ្ងៃខែខុស! (ឧ. `28-08-2026 14:30`) សូមវាយបញ្ចូលម្តងទៀត៖")
+
+    elif step == "GET_REMIND":
+        try:
+            remind_mins = int(text)
+        except ValueError:
+            await update.message.reply_text("⚠️ សូមបញ្ចូលជាតួលេខនាទីត្រឹមត្រូវ (ឧ. `10`)។ សូមវាយបញ្ចូលម្តងទៀត៖")
             return
+
+        topic = state.get("topic")
+        datetime_str = state.get("datetime_str")
 
         if user_id not in user_meetings:
             user_meetings[user_id] = []
 
         new_meeting = {
             "topic": topic,
-            "date_time": datetime_str
+            "date_time": datetime_str,
+            "remind": f"{remind_mins} នាទីមុន"
         }
         user_meetings[user_id].append(new_meeting)
 
+        # លុប State ចោលវិញក្រោយបញ្ចប់
+        del user_states[user_id]
+
         date_part = datetime_str.split(' ')[0]
         time_part = datetime_str.split(' ')[1]
-        report_text = f"គោរពរាយការណ៍ជូនមេ! ថ្ងៃនេះមានការប្រជុំ{topic} ថ្ងៃ {date_part} វេលាម៉ោង {time_part}"
-
-        await update.message.reply_text(report_text)
-
-    except Exception as e:
-        await update.message.reply_text(f"❌ មានបញ្ហា៖ សូមពិនិត្យទម្រង់ថ្ងៃខែឆ្នាំឡើងវិញ (`DD-MM-YYYY HH:MM`)។")
+        
+        # ជំហានទី ៤: បង្ហាញការរំលឹកសង្ខេប
+        report_text = (
+            f"🎉 **[ជំហានទី ៤/៤] បង្ហាញការរំលឹកសង្ខេបជោគជ័យ!**\n\n"
+            f"គោរពរាយការណ៍ជូនមេ! ថ្ងៃនេះមានការប្រជុំ{topic} ថ្ងៃ {date_part} វេលាម៉ោង {time_part} (រំលឹកមុន {remind_mins} នាទី)"
+        )
+        await update.message.reply_text(report_text, parse_mode="Markdown")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -241,9 +274,11 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def setup_handlers():
     telegram_app.add_handler(CommandHandler("start", start))
-    telegram_app.add_handler(CommandHandler("meeting", meeting_command))
+    telegram_app.add_handler(CommandHandler("meeting", meeting_start))
     telegram_app.add_handler(CallbackQueryHandler(button_handler))
-    telegram_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    telegram_app.add_handler(MessageHandler(filters.Document.ALL & ~filters.COMMAND, handle_document))
+    # ទទួលរាល់សារអត្ថបទធម្មតាដើម្បីដើរតាមជំហាននីមួយៗ
+    telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message_steps))
 
 if __name__ == '__main__':
     setup_handlers()
