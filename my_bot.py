@@ -63,7 +63,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"សួស្តី {user_name}! 🙏\n"
         "ខ្ញុំជា Bot ជំនួយការការងារ (My Work Assistant)។\n\n"
         "📁 **Attach ហ្វាល Word** - សម្រាប់គ្រប់គ្រងហ្វាលតាមប៊ូតុងអន្តរកម្ម។\n"
-        "📅 `/meeting` - កត់ត្រាកាលវិភាគប្រជុំ និងตั้งเวลาแจ้งเตือนដោយស្វ័យប្រវត្តិ។"
+        "📅 `/meeting` - កត់ត្រាកាលវិភាគប្រជុំ និងបញ្ជូនសាររាយការណ៍ជូនមេ។"
     )
     await update.message.reply_text(welcome_message)
 
@@ -76,7 +76,7 @@ async def meeting_receive_topic(update: Update, context: ContextTypes.DEFAULT_TY
     await update.message.reply_text(
         "✅ **បានកត់ត្រាប្រធានបទប្រជុំ**\n\n"
         "📅 បន្ត **សូមបញ្ចូល ថ្ងៃខែឆ្នាំ និងម៉ោង** តាមទម្រង់នេះ៖\n"
-        "`DD-MM-YYYY HH:MM` (ឧ. `26-08-2026 14:30`)"
+        "`DD-MM-YYYY HH:MM` (ឧ. `27-08-2026 14:30`)"
     )
     return GET_DATETIME
 
@@ -97,7 +97,7 @@ async def meeting_receive_datetime(update: Update, context: ContextTypes.DEFAULT
         )
         return GET_REMIND
     except ValueError:
-        await update.message.reply_text("❌ ទម្រង់ថ្ងៃខែខុស! (ត្រូវមានចន្លោះ Space រវាងថ្ងៃ និងម៉ោង) ឧ. `26-08-2026 14:30`")
+        await update.message.reply_text("❌ ទម្រង់ថ្ងៃខែខុស! (ត្រូវមានចន្លោះ Space រវាងថ្ងៃ និងម៉ោង) ឧ. `27-08-2026 14:30`")
         return GET_DATETIME
 
 async def meeting_receive_remind(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -128,7 +128,8 @@ async def meeting_receive_remind(update: Update, context: ContextTypes.DEFAULT_T
             parse_mode="Markdown"
         )
 
-    context.job_queue.run_once(alarm_callback, due_seconds, chat_id=chat_id)
+    if context.job_queue:
+        context.job_queue.run_once(alarm_callback, due_seconds, chat_id=chat_id)
 
     if user_id not in user_meetings:
         user_meetings[user_id] = []
@@ -140,16 +141,12 @@ async def meeting_receive_remind(update: Update, context: ContextTypes.DEFAULT_T
     }
     user_meetings[user_id].append(new_meeting)
 
-    table_text = (
-        f"✅ **បានកត់ត្រារម្លឹកមុន {remind_mins}នាទី និងរក្សាទុកជោគជ័យ!**\n\n"
-        "📊 **[ តារាងបញ្ជីការប្រជុំ (Meeting Table List) ]**\n"
-        "| ល.រ | ប្រធានបទ | ថ្ងៃខែឆ្នាំ ម៉ោង | រំលឹកមុន |\n"
-        "|:---:|:---|:---:|:---:|\n"
-    )
-    for idx, m in enumerate(user_meetings[user_id], 1):
-        table_text += f"| {idx} | {m['topic']} | {m['date_time']} | {m['remind']} |\n"
+    # បង្ហាញសាររាយការណ៍ចុងក្រោយតាមទម្រង់ស្នើសុំ
+    date_part = datetime_str.split(' ')[0]
+    time_part = datetime_str.split(' ')[1]
+    report_text = f"គោរពរាយការណ៍ជូនមេ! ថ្ងៃនេះមានការប្រជុំ{topic} ថ្ងៃ {date_part} វេលាម៉ោង {time_part}"
 
-    await update.message.reply_text(table_text, parse_mode="Markdown")
+    await update.message.reply_text(report_text)
     return ConversationHandler.END
 
 async def cancel_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -270,7 +267,8 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ មានបញ្ហា៖ {str(e)}")
 
 def main():
-    app = ApplicationBuilder().token("8900404018:AAEKN28HJjDuZf0bOvKwEz754Zqs8kPVaKk").build()
+    # 1. ដំណើរការ Telegram Bot ក្នុង Background Thread
+    app = ApplicationBuilder().token("8900404018:AAHq8R6Ge9LJ9gL0sUZO759hMMDGw8d_HnQ").build()
 
     meeting_conv = ConversationHandler(
         entry_points=[CommandHandler('meeting', meeting_start)],
@@ -288,13 +286,14 @@ def main():
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
     def run_telegram_bot():
-        app.run_polling()
+        app.run_polling(drop_pending_updates=True)
 
     bot_thread = threading.Thread(target=run_telegram_bot)
     bot_thread.daemon = True
     bot_thread.start()
     print("Telegram Bot បានចាប់ផ្តើមដំណើរការក្នុង Background!")
 
+    # 2. ให้ Flask Server រត់ជា Main Process ដើម្បីបើក Port ឱ្យ Render ស្គាល់
     port = int(os.environ.get("PORT", 10000))
     app_flask.run(host="0.0.0.0", port=port)
 
